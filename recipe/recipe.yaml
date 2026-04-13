@@ -25,6 +25,12 @@ build:
       - cd crates/rattler-bin
       - cargo-bundle-licenses --format yaml --output ../../THIRDPARTY.yml
       - cargo auditable install --no-track --locked --features native-tls,s3,gcs --no-default-features --root ${{ PREFIX }} --path .
+      - if: unix
+        then:
+          - mkdir -p $PREFIX/share/zsh/site-functions $PREFIX/share/bash-completion/completions $PREFIX/share/fish/vendor_completions.d
+          - $PREFIX/bin/rattler completion --shell zsh > $PREFIX/share/zsh/site-functions/_rattler
+          - $PREFIX/bin/rattler completion --shell bash > $PREFIX/share/bash-completion/completions/rattler
+          - $PREFIX/bin/rattler completion --shell fish > $PREFIX/share/fish/vendor_completions.d/rattler.fish
 
 requirements:
   build:
@@ -47,6 +53,12 @@ tests:
   - package_contents:
       bin:
         - rattler
+      files:
+        - if: unix
+          then:
+            - share/bash-completion/completions/rattler
+            - share/fish/vendor_completions.d/rattler.fish
+            - share/zsh/site-functions/_rattler
       strict: true
 
 about:
