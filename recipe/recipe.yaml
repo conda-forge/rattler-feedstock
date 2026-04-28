@@ -27,7 +27,7 @@ build:
       - cargo auditable install --no-track --locked --features native-tls,s3,gcs --no-default-features --root ${{ PREFIX }} --path .
       - if: unix
         then:
-          - mkdir $PREFIX/etc/pixi/rattler
+          - mkdir -p $PREFIX/etc/pixi/rattler
           - touch $PREFIX/etc/pixi/rattler/global-ignore-conda-prefix
         else:
           - mkdir %PREFIX%\etc\pixi\rattler
