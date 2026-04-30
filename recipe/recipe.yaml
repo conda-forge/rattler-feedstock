@@ -1,5 +1,5 @@
 context:
-  version: "0.1.5"
+  version: "0.1.6"
 
 package:
   name: rattler
@@ -7,13 +7,13 @@ package:
 
 source:
   - url: https://github.com/conda/rattler/archive/rattler-bin-v${{ version }}.tar.gz
-    sha256: 38aeeffbabcf439fb6acd3451368c24a87e1b75471071379acf257bd57b9b367
+    sha256: 4499455e77dd8e00eca4496782a06372661bfcfcb4d45f88553c37f3d4456e9d
   - url: https://github.com/baszalmstra/libsolv/archive/068739980a909f39b647b9a96146e58e80741d1e.tar.gz
     target_directory: crates/rattler_libsolv_c/libsolv
     sha256: 4cf3e8a09e6710b5452be43c103aef9d33a08f31db1f5f870492045697d53161
 
 build:
-  number: 1
+  number: 0
   script:
     env:
       CARGO_PROFILE_RELEASE_STRIP: symbols
@@ -29,16 +29,13 @@ build:
         then:
           - mkdir -p $PREFIX/etc/pixi/rattler
           - touch $PREFIX/etc/pixi/rattler/global-ignore-conda-prefix
-        else:
-          - mkdir %PREFIX%\etc\pixi\rattler
-          - touch %PREFIX%\etc\pixi\rattler\global-ignore-conda-prefix
-      - if: unix
-        then:
           - mkdir -p $PREFIX/share/zsh/site-functions $PREFIX/share/bash-completion/completions $PREFIX/share/fish/vendor_completions.d
           - $PREFIX/bin/rattler completion --shell zsh > $PREFIX/share/zsh/site-functions/_rattler
           - $PREFIX/bin/rattler completion --shell bash > $PREFIX/share/bash-completion/completions/rattler
           - $PREFIX/bin/rattler completion --shell fish > $PREFIX/share/fish/vendor_completions.d/rattler.fish
-
+        else:
+          - mkdir %PREFIX%\etc\pixi\rattler
+          - touch %PREFIX%\etc\pixi\rattler\global-ignore-conda-prefix
 requirements:
   build:
     - ${{ compiler('c') }}
