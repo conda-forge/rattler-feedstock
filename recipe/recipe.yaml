@@ -48,7 +48,8 @@ requirements:
     - cargo-bundle-licenses
     - cargo-auditable
     - cmake
-    - make
+    - if: unix
+      then: make
   host:
     - if: linux
       then:
