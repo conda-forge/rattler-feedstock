@@ -30,8 +30,11 @@ build:
           # rust-lld, which rustc uses by default, cannot handle the inline-PLT
           # relocations gcc emits for ppc64le (R_PPC64_PLT16_HA, R_PPC64_PLTSEQ,
           # R_PPC64_PLTCALL) in the vendored libsolv objects. gcc honors the last
-          # -fuse-ld, so this falls back to the GNU bfd linker.
-          - export CARGO_BUILD_RUSTFLAGS="${CARGO_BUILD_RUSTFLAGS:-} -C link-arg=-fuse-ld=bfd"
+          # -fuse-ld, so this falls back to the GNU bfd linker. It has to go into
+          # RUSTFLAGS rather than CARGO_BUILD_RUSTFLAGS: cargo-auditable passes its
+          # own flags via CARGO_ENCODED_RUSTFLAGS, which shadows the config-level
+          # CARGO_BUILD_RUSTFLAGS but preserves RUSTFLAGS.
+          - export RUSTFLAGS="${RUSTFLAGS:-${CARGO_BUILD_RUSTFLAGS:-}} -C link-arg=-fuse-ld=bfd"
       - cd crates/rattler-bin
       - cargo-bundle-licenses --format yaml --output ../../THIRDPARTY.yml
       - cargo auditable install --no-track --locked --features native-tls,s3,gcs --no-default-features --root ${{ PREFIX }} --path .
