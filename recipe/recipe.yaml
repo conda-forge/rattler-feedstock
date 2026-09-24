@@ -1,5 +1,5 @@
 context:
-  version: "0.4.0"
+  version: "0.4.1"
 
 package:
   name: rattler
@@ -7,7 +7,7 @@ package:
 
 source:
   - url: https://github.com/conda/rattler/archive/rattler-bin-v${{ version }}.tar.gz
-    sha256: 1f119758e8f35c669055b38728d102b4e3f9021c22e50c5be772266fdbcf3ee6
+    sha256: 3bdaedaecc3904b9ca4aa0743215338e6e91cd274c9862a8b98e95967b31c36f
   - url: https://github.com/baszalmstra/libsolv/archive/068739980a909f39b647b9a96146e58e80741d1e.tar.gz
     target_directory: crates/rattler_libsolv_c/libsolv
     sha256: 4cf3e8a09e6710b5452be43c103aef9d33a08f31db1f5f870492045697d53161
@@ -43,7 +43,7 @@ build:
           - unset AWS_LC_SYS_CMAKE_BUILDER
       - cd crates/rattler-bin
       - cargo-bundle-licenses --format yaml --output ../../THIRDPARTY.yml
-      - cargo auditable install --no-track --locked --features native-tls,s3,gcs --no-default-features --root ${{ PREFIX }} --path .
+      - cargo auditable install --no-track --locked --features native-tls,s3,gcs,oauth,sigstore --no-default-features --root ${{ PREFIX }} --path .
       - if: unix
         then:
           - mkdir -p $PREFIX/etc/pixi/rattler
@@ -56,9 +56,13 @@ build:
           - $PREFIX/bin/rattler completion --shell zsh > $PREFIX/share/zsh/site-functions/_rattler
           - $PREFIX/bin/rattler completion --shell bash > $PREFIX/share/bash-completion/completions/rattler
           - $PREFIX/bin/rattler completion --shell fish > $PREFIX/share/fish/vendor_completions.d/rattler.fish
+          - mkdir -p $PREFIX/share/agent-skills/rattler
+          - $PREFIX/bin/rattler skill > $PREFIX/share/agent-skills/rattler/SKILL.md
         else:
           - mkdir %PREFIX%\etc\pixi\rattler
           - touch %PREFIX%\etc\pixi\rattler\global-ignore-conda-prefix
+          - mkdir %PREFIX%\share\agent-skills\rattler
+          - '%PREFIX%\bin\rattler.exe skill > %PREFIX%\share\agent-skills\rattler\SKILL.md'
 requirements:
   build:
     - ${{ compiler('c') }}
@@ -78,11 +82,19 @@ requirements:
 tests:
   - script:
       - rattler --version
+  - script:
+      - if: unix
+        then: agentskills validate $CONDA_PREFIX/share/agent-skills/rattler
+        else: 'agentskills validate %CONDA_PREFIX%\share\agent-skills\rattler'
+    requirements:
+      run:
+        - skills-ref
   - package_contents:
       bin:
         - rattler
       files:
         - etc/pixi/rattler/global-ignore-conda-prefix
+        - share/agent-skills/rattler/SKILL.md
         - if: unix
           then:
             - share/bash-completion/completions/rattler
