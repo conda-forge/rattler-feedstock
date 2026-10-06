@@ -1,5 +1,5 @@
 context:
-  version: "0.5.0"
+  version: "0.5.1"
 
 package:
   name: rattler
@@ -7,7 +7,7 @@ package:
 
 source:
   - url: https://github.com/conda/rattler/archive/rattler-bin-v${{ version }}.tar.gz
-    sha256: 7ccc15b5b30a3f1ad29be1a6fe79d0d22222044fbbfd8cc043a0cd519100557f
+    sha256: deaf26f8991f3a7ef0d638dfc947ba2df755982de6d3ad4c382c410617356f9d
   - url: https://github.com/baszalmstra/libsolv/archive/068739980a909f39b647b9a96146e58e80741d1e.tar.gz
     target_directory: crates/rattler_libsolv_c/libsolv
     sha256: 4cf3e8a09e6710b5452be43c103aef9d33a08f31db1f5f870492045697d53161
@@ -37,10 +37,14 @@ build:
           - export RUSTFLAGS="${RUSTFLAGS:-${CARGO_BUILD_RUSTFLAGS:-}} -C link-arg=-fuse-ld=bfd"
           # aws-lc-sys' cmake build does not assemble aesp8-ppc.S/ghashp8-ppc.S when
           # cross-compiling, leaving aes_hw_* and gcm_*_p8 undefined. Its cc builder
-          # does compile them, and the jitterentropy problem that made us pick cmake
-          # in the first place does not apply here - that source is not part of the
-          # ppc64le file list.
+          # does compile them.
           - unset AWS_LC_SYS_CMAKE_BUILDER
+          # Since aws-lc-sys 0.45 the cc builder also compiles jitterentropy on
+          # ppc64le, which must be built with -O0. cc-rs appends CFLAGS and
+          # CFLAGS_<target> after that -O0, so strip the optimization flags from
+          # them; cc-rs still passes its own -O level based on the cargo profile.
+          - export CFLAGS="$(echo "$CFLAGS" | sed -E 's/(^| )-O[0-9sgz]?( |$)/ /g')"
+          - export CFLAGS_powerpc64le_unknown_linux_gnu="$CFLAGS"
       - cd crates/rattler-bin
       - cargo-bundle-licenses --format yaml --output ../../THIRDPARTY.yml
       - cargo auditable install --no-track --locked --features native-tls,s3,gcs,oauth,sigstore --no-default-features --root ${{ PREFIX }} --path .
