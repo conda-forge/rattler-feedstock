@@ -37,10 +37,14 @@ build:
           - export RUSTFLAGS="${RUSTFLAGS:-${CARGO_BUILD_RUSTFLAGS:-}} -C link-arg=-fuse-ld=bfd"
           # aws-lc-sys' cmake build does not assemble aesp8-ppc.S/ghashp8-ppc.S when
           # cross-compiling, leaving aes_hw_* and gcm_*_p8 undefined. Its cc builder
-          # does compile them, and the jitterentropy problem that made us pick cmake
-          # in the first place does not apply here - that source is not part of the
-          # ppc64le file list.
+          # does compile them.
           - unset AWS_LC_SYS_CMAKE_BUILDER
+          # Since aws-lc-sys 0.45 the cc builder also compiles jitterentropy on
+          # ppc64le, which must be built with -O0. cc-rs appends CFLAGS and
+          # CFLAGS_<target> after that -O0, so strip the optimization flags from
+          # them; cc-rs still passes its own -O level based on the cargo profile.
+          - export CFLAGS="$(echo "$CFLAGS" | sed -E 's/(^| )-O[0-9sgz]?( |$)/ /g')"
+          - export CFLAGS_powerpc64le_unknown_linux_gnu="$CFLAGS"
       - cd crates/rattler-bin
       - cargo-bundle-licenses --format yaml --output ../../THIRDPARTY.yml
       - cargo auditable install --no-track --locked --features native-tls,s3,gcs,oauth,sigstore --no-default-features --root ${{ PREFIX }} --path .
