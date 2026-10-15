@@ -18,6 +18,9 @@ build:
     env:
       CARGO_PROFILE_RELEASE_STRIP: symbols
       CARGO_PROFILE_RELEASE_LTO: fat
+      # openssl-sys finds openssl through pkg-config; the pkg-config crate
+      # refuses to run when cross-compiling (ppc64le, riscv64) unless told so.
+      PKG_CONFIG_ALLOW_CROSS: "1"
       # Link conda-forge's aws-lc (shared) instead of compiling the copy
       # bundled with aws-lc-sys.
       AWS_LC_SYS_STATIC: "0"
@@ -28,9 +31,9 @@ build:
       # point aws-lc-sys at the Rust bindings the package ships. Only the
       # aws-lc libraries go into lib/: aws-lc-sys looks for libcrypto before
       # libcrypto-awslc, and on linux openssl's libcrypto sits in $PREFIX/lib.
+      # (That is also why its pkg-config based auto-detection cannot be used.)
       - if: unix
         then:
-          - export OPENSSL_DIR=$PREFIX
           - mkdir -p aws-lc-sysroot/lib
           - ln -s $PREFIX/include/aws-lc aws-lc-sysroot/include
           - ln -s $PREFIX/lib/libcrypto-awslc.* $PREFIX/lib/libssl-awslc.* aws-lc-sysroot/lib/
@@ -90,6 +93,8 @@ requirements:
     - cmake
     - if: unix
       then: make
+    - if: linux
+      then: pkg-config
   host:
     # Needs the build that ships share/rust/aws_lc_bindings.rs.
     - aws-lc >=5.11.0
