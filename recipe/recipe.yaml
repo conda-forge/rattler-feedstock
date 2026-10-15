@@ -25,13 +25,15 @@ build:
       # aws-lc-sys expects a plain <prefix>/{include,lib} layout, but the
       # conda-forge aws-lc package installs its headers under include/aws-lc
       # so they do not clash with openssl. Assemble that layout from links and
-      # point aws-lc-sys at the Rust bindings the package ships.
+      # point aws-lc-sys at the Rust bindings the package ships. Only the
+      # aws-lc libraries go into lib/: aws-lc-sys looks for libcrypto before
+      # libcrypto-awslc, and on linux openssl's libcrypto sits in $PREFIX/lib.
       - if: unix
         then:
           - export OPENSSL_DIR=$PREFIX
-          - mkdir aws-lc-sysroot
+          - mkdir -p aws-lc-sysroot/lib
           - ln -s $PREFIX/include/aws-lc aws-lc-sysroot/include
-          - ln -s $PREFIX/lib aws-lc-sysroot/lib
+          - ln -s $PREFIX/lib/libcrypto-awslc.* $PREFIX/lib/libssl-awslc.* aws-lc-sysroot/lib/
           - export AWS_LC_SYS_SYSTEM_DIR=$SRC_DIR/aws-lc-sysroot
           - export AWS_LC_SYS_SYSTEM_BINDINGS=$PREFIX/share/rust/aws_lc_bindings.rs
         else:
