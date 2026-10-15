@@ -13,18 +13,34 @@ source:
     sha256: 4cf3e8a09e6710b5452be43c103aef9d33a08f31db1f5f870492045697d53161
 
 build:
-  number: 0
+  number: 1
   script:
     env:
-      # Use cmake to build aws-lc-sys, because conda's CFLAGS inject -O2 which
-      # overrides the -O0 required by jitterentropy-base.c, causing a build failure.
-      AWS_LC_SYS_CMAKE_BUILDER: "1"
       CARGO_PROFILE_RELEASE_STRIP: symbols
       CARGO_PROFILE_RELEASE_LTO: fat
+      # Link conda-forge's aws-lc (shared) instead of compiling the copy
+      # bundled with aws-lc-sys.
+      AWS_LC_SYS_STATIC: "0"
     content:
+      # aws-lc-sys expects a plain <prefix>/{include,lib} layout, but the
+      # conda-forge aws-lc package installs its headers under include/aws-lc
+      # so they do not clash with openssl. Assemble that layout from links and
+      # point aws-lc-sys at the Rust bindings the package ships.
       - if: unix
         then:
           - export OPENSSL_DIR=$PREFIX
+          - mkdir aws-lc-sysroot
+          - ln -s $PREFIX/include/aws-lc aws-lc-sysroot/include
+          - ln -s $PREFIX/lib aws-lc-sysroot/lib
+          - export AWS_LC_SYS_SYSTEM_DIR=$SRC_DIR/aws-lc-sysroot
+          - export AWS_LC_SYS_SYSTEM_BINDINGS=$PREFIX/share/rust/aws_lc_bindings.rs
+        else:
+          - mkdir aws-lc-sysroot
+          - mklink /J aws-lc-sysroot\include %LIBRARY_INC%\aws-lc
+          - mklink /J aws-lc-sysroot\lib %LIBRARY_LIB%
+          - mklink /J aws-lc-sysroot\bin %LIBRARY_BIN%
+          - set AWS_LC_SYS_SYSTEM_DIR=%SRC_DIR%\aws-lc-sysroot
+          - set AWS_LC_SYS_SYSTEM_BINDINGS=%LIBRARY_PREFIX%\share\rust\aws_lc_bindings.rs
       - if: ppc64le
         then:
           # rust-lld, which rustc uses by default, cannot handle the inline-PLT
@@ -35,16 +51,6 @@ build:
           # own flags via CARGO_ENCODED_RUSTFLAGS, which shadows the config-level
           # CARGO_BUILD_RUSTFLAGS but preserves RUSTFLAGS.
           - export RUSTFLAGS="${RUSTFLAGS:-${CARGO_BUILD_RUSTFLAGS:-}} -C link-arg=-fuse-ld=bfd"
-          # aws-lc-sys' cmake build does not assemble aesp8-ppc.S/ghashp8-ppc.S when
-          # cross-compiling, leaving aes_hw_* and gcm_*_p8 undefined. Its cc builder
-          # does compile them.
-          - unset AWS_LC_SYS_CMAKE_BUILDER
-          # Since aws-lc-sys 0.45 the cc builder also compiles jitterentropy on
-          # ppc64le, which must be built with -O0. cc-rs appends CFLAGS and
-          # CFLAGS_<target> after that -O0, so strip the optimization flags from
-          # them; cc-rs still passes its own -O level based on the cargo profile.
-          - export CFLAGS="$(echo "$CFLAGS" | sed -E 's/(^| )-O[0-9sgz]?( |$)/ /g')"
-          - export CFLAGS_powerpc64le_unknown_linux_gnu="$CFLAGS"
       - cd crates/rattler-bin
       - cargo-bundle-licenses --format yaml --output ../../THIRDPARTY.yml
       - cargo auditable install --no-track --locked --features native-tls,s3,gcs,oauth,sigstore --no-default-features --root ${{ PREFIX }} --path .
@@ -55,14 +61,18 @@ build:
           - mkdir -p $PREFIX/share/zsh/site-functions $PREFIX/share/bash-completion/completions $PREFIX/share/fish/vendor_completions.d
           # cargo does not pass LDFLAGS to the final link, so the binary carries no
           # rpath until rattler-build relinks it at packaging time. Running it here
-          # - under qemu when cross-compiling - needs this to find libssl.
+          # - under qemu when cross-compiling - needs this to find libcrypto-awslc
+          # and libssl.
           - export LD_LIBRARY_PATH="$PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          - export DYLD_FALLBACK_LIBRARY_PATH="$PREFIX/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"
           - $PREFIX/bin/rattler completion --shell zsh > $PREFIX/share/zsh/site-functions/_rattler
           - $PREFIX/bin/rattler completion --shell bash > $PREFIX/share/bash-completion/completions/rattler
           - $PREFIX/bin/rattler completion --shell fish > $PREFIX/share/fish/vendor_completions.d/rattler.fish
           - mkdir -p $PREFIX/share/agent-skills/rattler
           - $PREFIX/bin/rattler skill > $PREFIX/share/agent-skills/rattler/SKILL.md
         else:
+          # crypto-awslc.dll lives in Library\bin; make sure rattler.exe finds it.
+          - set PATH=%LIBRARY_BIN%;%PATH%
           - mkdir %PREFIX%\etc\pixi\rattler
           - touch %PREFIX%\etc\pixi\rattler\global-ignore-conda-prefix
           - mkdir %PREFIX%\share\agent-skills\rattler
@@ -79,6 +89,8 @@ requirements:
     - if: unix
       then: make
   host:
+    # Needs the build that ships share/rust/aws_lc_bindings.rs.
+    - aws-lc >=5.11.0
     - if: linux
       then:
         - openssl
