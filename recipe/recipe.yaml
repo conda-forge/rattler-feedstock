@@ -29,12 +29,13 @@ build:
         then:
           # rust-lld, which rustc uses by default, cannot handle the inline-PLT
           # relocations gcc emits for ppc64le (R_PPC64_PLT16_HA, R_PPC64_PLTSEQ,
-          # R_PPC64_PLTCALL) in the vendored libsolv objects. gcc honors the last
-          # -fuse-ld, so this falls back to the GNU bfd linker. It has to go into
-          # RUSTFLAGS rather than CARGO_BUILD_RUSTFLAGS: cargo-auditable passes its
-          # own flags via CARGO_ENCODED_RUSTFLAGS, which shadows the config-level
-          # CARGO_BUILD_RUSTFLAGS but preserves RUSTFLAGS.
-          - export RUSTFLAGS="${RUSTFLAGS:-${CARGO_BUILD_RUSTFLAGS:-}} -C link-arg=-fuse-ld=bfd"
+          # R_PPC64_PLTCALL) when compiling with -fno-plt. Drop -fno-plt so the
+          # C objects (libsolv, aws-lc, ...) use regular PLT calls. Falling back to
+          # the GNU bfd linker instead is not an option: the binary has grown beyond
+          # the R_PPC64_REL24 branch range and bfd fails with "relocation truncated
+          # to fit", whereas rust-lld inserts range-extension thunks.
+          - export CFLAGS="$(echo "$CFLAGS" | sed -E 's/(^| )-fno-plt( |$)/ /g')"
+          - export CXXFLAGS="$(echo "$CXXFLAGS" | sed -E 's/(^| )-fno-plt( |$)/ /g')"
           # aws-lc-sys' cmake build does not assemble aesp8-ppc.S/ghashp8-ppc.S when
           # cross-compiling, leaving aes_hw_* and gcm_*_p8 undefined. Its cc builder
           # does compile them.
